@@ -1,10 +1,8 @@
-# An abstraction layer for common operating system services
+# An implementation of anonymous unions in Nim
 
 [![CI status](https://github.com/alaviss/union/workflows/CI/badge.svg)](https://github.com/alaviss/union/actions?query=workflow%3ACI)
 ![Minimum supported Nim version](https://img.shields.io/badge/nim-1.5.1%2B-informational?style=flat&logo=nim)
 [![License](https://img.shields.io/github/license/alaviss/union?style=flat)](#license)
-
-An implementation of anonymous unions in Nim
 
 - [API documentation][0]
 
