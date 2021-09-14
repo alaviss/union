@@ -385,8 +385,11 @@ template `==`*[T; U: Union](u: U, x: T): untyped =
   ## Compares union `u` with `x` only if `u` current type is `T`.
   ##
   ## Returns false if `u` current type is not `T`.
-  let tmp = u
-  tmp of typedesc[T] and tmp as typedesc[T] == x
+  when contains(typedesc[U], typedesc[T]):
+    let tmp = u
+    tmp of typedesc[T] and tmp as typedesc[T] == x
+  else:
+    {.error: "<" & T.name & "> is not a type in <" & U.name & ">, hence cannot be compared".}
 
 template `==`*[T; U: Union](x: T, u: U): untyped =
   ## Compares union `u` with `x` only if `u` current type is `T`.

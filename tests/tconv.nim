@@ -32,3 +32,4 @@ suite "Union conversions":
   test "Auto-conversion for equivalence between regular type and union":
     check 10 as union(int | float) == 10
     check 4.0 as union(float | string) == 4.0
+    check 10 == (10 as union(int | float))
