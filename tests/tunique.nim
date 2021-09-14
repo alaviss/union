@@ -12,6 +12,3 @@ suite "Union type uniqueness":
 
   test "Union can unpack typeclasses":
     check union(SomeFloat | int) is union(int | float | float32 | float64)
-
-  test "Union of one type is itself":
-    check union(int | int | int | int) is int
