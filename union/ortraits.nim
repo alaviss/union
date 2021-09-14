@@ -56,17 +56,18 @@ func `==`*(a, b: OrTy): bool =
   result = a.numTypes == b.numTypes and b in a
 
 proc add*(o: OrTy, n: NimNode) =
-  ## Add type `n` into `o` without creating duplicates.
+  ## Add type instantiation of `n` into `o` without creating duplicates.
   if n notin o:
-    o.NimNode.add n
+    o.NimNode.add getTypeInst(n)
 
 proc add*(o: OrTy, an: openArray[NimNode]) =
-  ## Add all types in array `an` to `o` without creating duplicates.
+  ## Add all instantiation of types in array `an` to `o` without creating
+  ## duplicates.
   for n in an.items:
     o.add n
 
 func add*(o: OrTy, n: OrTy) =
-  ## Add all types in `n` to `o` without creating duplicates.
+  ## Add all instantiation of types in `n` to `o` without creating duplicates.
   for typ in n.types:
     o.add copy(typ)
 
