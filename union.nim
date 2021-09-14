@@ -41,355 +41,152 @@ runnableExamples:
   assert [1, 2, 42, 20, 1000].search(42) as int == 42
 
 import std/[
-  algorithm, enumerate, macros, macrocache, genasts, sequtils, sugar,
-  typetraits
+  algorithm, macros, macrocache, sequtils, typetraits, options, wrapnils
 ]
+
+import union/[ortraits, typeutils, uniontraits]
 
 proc infix(a, op, b: NimNode): NimNode =
   ## Produce an infix call
   nnkInfix.newTree(op, a, b)
 
-func newTypeDesc(n: NimNode): NimNode =
-  ## Create typedesc[n]
-  nnkBracketExpr.newTree(bindSym"typedesc", copy(n))
-
-type
-  Union*[T] {.pure.} = object of RootObj
-    ## Base type for unions, this is provided to be used as a type class
-    ## for matching all unions.
-
-  UnionTy = distinct NimNode
-    ## A node representing the implementation of a Union object
-    ##
-    ## Internally we have a
-    ##
-    ## ObjectTy
-    ##   Empty
-    ##   OfInherit
-    ##     Sym "Union"
-    ##   RecList
-    ##     RecCase
-    ##       Sym <- the discrimiator
-    ##       OfBranch... <- the different branches of the union
-    ##
-    ## It is assumed that UnionTy is typed.
-
-converter toNimNode(u: UnionTy): NimNode = NimNode(u)
-  ## Provide compatibility with NimNode
-
-proc toUnionTy(n: NimNode): UnionTy =
-  ## Verify and convert `n` to UnionTy
-  n.expectKind nnkObjectTy
-  # Check its inheritance
-  if not n[1].sameType(bindSym"Union"):
-    error("object is not descended from Union", n[1])
-  # Verify that its a case-object
-  n[2][0].expectKind nnkRecCase
-  result = UnionTy(n)
-
-proc getUnionTy(n: NimNode): UnionTy =
-  ## Obtain the UnionTy from a typed NimNode
-  case n.typeKind
-  of ntyTypeDesc:
-    result = getUnionTy(getType(n)[1])
-  of ntyObject, ntyAlias:
-    result = toUnionTy(getType n)
-  else:
-    error "unsupported type kind " & $n.typeKind, n
-
-func isUnionTy(n: NimNode): bool =
-  ## Verity if type `n` is an union type
-  case n.typeKind
-  of ntyTypeDesc:
-    result = isUnionTy(getType(n)[1])
-  of ntyObject, ntyAlias:
-    if n.kind == nnkObjectTy:
-      result = n[1].sameType(bindSym"Union")
-    else:
-      result = getType(n).isUnionTy
-  else:
-    result = false
-
-func variant(u: UnionTy): NimNode =
-  ## Returns the variant part of the union type
-  u[2][0]
-
-iterator fields(u: UnionTy): tuple[enm, field: NimNode] =
-  ## Yields the fields and enums associated with it in `u`
-  let recCase = u.variant
-  for idx in 1 ..< recCase.len:
-    yield (recCase[idx][0], recCase[idx][1])
-
-func contains(u: UnionTy, n: NimNode): bool =
-  ## Determine whether the type of `n` is in `u`
-  for _, field in u.fields:
-    if field.sameType(n):
-      return true
-
-func contains(a, b: UnionTy): bool =
-  ## Determine whether `b` is a subset of `a`
-  for _, field in b.fields:
-    if field notin a:
-      return false
-
-  result = true
-
-func instantiation(u: UnionTy): NimNode =
-  ## Produce the AST needed to instantiate the union `u`
-  result = newNimNode(nnkCall)
-  result.add ident"union"
-  var typExpr: NimNode
-  for _, field in u.fields:
-    let fieldTyp = getTypeInst(field)
-    if typExpr.isNil:
-      typExpr = fieldTyp
-    else:
-      typExpr = nnkInfix.newTree(bindSym"|", typExpr, fieldTyp)
-  result.add typExpr
-
-proc discrimiator(u: UnionTy): NimNode =
-  ## Return the IdentDefs of the discrimiator
-  u.variant[0]
-
-func `*`(a, b: UnionTy): seq[NimNode] =
-  ## Produce the list of types that are common between `a` and `b`
-  for _, field in a.fields:
-    if field in b:
-      result.add getTypeInst(field)
-
-proc getField(u: UnionTy, T: NimNode): tuple[enm, field: NimNode] =
-  ## Get the field of `u` with type `T`, raises `KeyError` if there is no field
-  ## with type `T` in `u`
-  for enm, field in u.fields:
-    if field.sameType(T):
-      return (enm, field)
-
-  raise newException(KeyError):
-    "the type of node " & repr(T) & " is not within the union"
-
 macro `of`*[U: Union](x: U, T: typedesc): bool =
   ## Returns whether the union `x` is having a value of type `T`
-  let union = x.getUnionTy()
-  let T = getType(T)[1]
-  var typeEnm: NimNode
-  for enm, field in union.fields:
-    if field.sameType(T):
-      typeEnm = copy(enm)
-      break
-  if typeEnm.isNil:
-    error "type <" & repr(T.getTypeInst) & "> is not a part of <" & repr(union.instantiation) & ">"
+  let
+    union = getUnionType(x)
+    # Get the user's type from T
+    T = getTypeInstSkip(T, {ntyTypeDesc})
+
+  let variant = union.getVariant(T)
+  # If a variant with user's type exist
+  if variant.isSome:
+    # Return a discrimiator comparision
+    result = infix(newCall(bindSym"currentType", x), bindSym"==", variant.get.enm)
   else:
-    result = newCall(bindSym"==", newDotExpr(copy(x), copy(union.discrimiator)), copy(typeEnm))
+    # $ is used for `U` because it's a typedesc (the value not the node) in this context
+    error "type <" & repr(T) & "> is not a part of <" & $U & ">", T
 
 macro `of`*(x: Union, T: typedesc[Union]): bool =
   ## Returns whether the union `x` is having a value convertible to union `T`
-  let union = x.getUnionTy()
-  let T = getType(T)[1]
+  let
+    union = x.getUnionType()
+    T = T.getUnionType()
   # If x is of type T, return true
   if x.sameType(T):
-    return newLit(true)
-
-  let intersect = union * T.getUnionTy
-  # If there are no type in common between x and T, return false
-  if intersect.len == 0:
-    return newLit(false)
+    newLit true
   else:
-    # Create a set of enum corresponding to the intersection
-    let enums = newNimNode(nnkCurlyExpr)
-    for typ in intersect.items:
-      enums.add copy(union.getField(typ).enm)
+    let intersect = union * T
+    # If there are no type in common between x and T, return false
+    if intersect.len == 0:
+      newLit false
+    else:
+      # Create a set of enum corresponding to the intersection
+      let enums = newNimNode(nnkCurlyExpr)
+      enums.add intersect
 
-    result = infix(newDotExpr(x, copy(union.discrimiator)), bindSym"in", enums)
+      # Produce the check expression
+      infix(newCall(bindSym"currentType", x), bindSym"in", enums)
 
 macro `as`*(x: typed, U: typedesc[Union]): untyped =
   ## Convert `x` into union type `U`. A compile-time error will be raised if
   ## `x` is not a type within `U`.
-  let union = U.getUnionTy()
+  let
+    union = U.getUnionType()
+    U = U.getTypeInstSkip()
 
-  for enm, field in union.fields:
-    # If there is a field with the type of `x`
-    if field.sameType(x):
-      # Construct the union type
-      result = newNimNode(nnkObjConstr)
-      # If `u` is a typedesc, retrieve the real type symbol
-      if U.typeKind == ntyTypeDesc:
-        result.add getType(U)[1]
-      else:
-        result.add U
-      # Put the correct discrimiator value
-      result.add:
-        nnkExprColonExpr.newTree(copy union.discrimiator, copy enm)
-      # Set the correct field with `x`'s data
-      result.add:
-        nnkExprColonExpr.newTree(copy field, x)
+  # Retrieve the variant with the same type as `x`
+  let variant = union.getVariant(x)
+  if variant.isSome:
+    # Construct the union type
+    let (enm, field, _) = get variant
 
-      return
+    result = nnkObjConstr.newTree [
+      U,
+      # Initialize the discrimiator value
+      nnkExprColonExpr.newTree(copy union.typeField, copy enm),
+      # Initialize the data field with `x`'s data
+      nnkExprColonExpr.newTree(copy field, x)
+    ]
 
-  error "values of type <" & repr(getTypeInst(x)) & "> is not convertible to <" & repr(union.instantiation) & ">", x
+  else:
+    error "values of type <" & repr(getTypeInst(x)) & "> is not convertible to <" & $U & ">", x
 
 macro `as`*[U: Union](x: U, T: typedesc): untyped =
-  ## Convert union `x` to type `T`
-  let union = x.getUnionTy()
+  ## Convert union `x` to type `T`. A compile-time error will be raised if `T`
+  ## is not a part of the union `x`.
+  ##
+  ## A runtime defect will be raised if `x` current type is not `T`.
+  let union = x.getUnionType()
 
-  # T is a typedesc, so obtain the real type symbol
-  let T = getType(T)[1]
-
-  # Find the field with type T
-  for enm, field in union.fields:
-    if field.sameType(T):
-      # Simply emit the access to `field`
-      result = newDotExpr(x, copy(field))
-
-      return
-
-  error "values of type <" & repr(union.instantiation) & "> is not convertible to <" & repr(T) & ">", x
+  # Get the variant with type T
+  let variant = union.getVariant(getTypeSkip T)
+  if variant.isSome:
+    # Simply emit the access to `field`
+    result = newDotExpr(x, copy(variant.get.field))
+  else:
+    error "values of type <" & $U & "> is not convertible to <" & repr(T) & ">", x
 
 macro `as`*[U, V: Union](x: U, T: typedesc[V]): untyped =
   ## Convert union `x` to union `T`.
   ##
   ## If `x` doesn't have any type in common with `T`, a compile-time error will be raised.
   ## Otherwise, `x` will be converted to `T` if `x` current type is one of `T` types.
-  ## A runtime error will be raised if `x` current type is not one of `T` types.
-  let union = x.getUnionTy()
-  let T = getType(T)[1]
-  # If `x` is the same type as `T`
+  ##
+  ## A runtime defect will be raised if `x` current type is not one of `T` types.
+  let
+    union = x.getUnionType()
+    T = getTypeInstSkip(T)
+  # If `x` is the same type as `T`, do nothing
   if union.sameType(T):
-    return x
-
-  let intersect = union * T.getUnionTy
-  # If there are no common types, raise an error
-  if intersect.len == 0:
-    error "values of type <" & repr(union.instantiation) & "> is not convertible to <" & repr(T) & ">", x
+    result = x
   else:
-    result = newStmtList()
-    # Generate a temporary to store `x` while we evaluate it
-    let tmp = gensym()
-    result.add newLetStmt(tmp, x)
-    # Build an if statement that converts `x` to `T`, dispatching on `x` current type
-    var branches: seq[(NimNode, NimNode)]
-    for typ in intersect:
-      # Create a typedesc because a type symbol doesn't turn into typedesc automatically
-      let
-        typdsc = newTypeDesc(typ)
-        Tdsc = newTypeDesc(T)
-      branches.add (
-        # Condition: tmp of typ
-        infix(copy(tmp), bindSym"of", copy(typdsc)),
-        # Expression: tmp as typ as T
-        infix(infix(copy(tmp), bindSym"as", copy(typdsc)), bindSym"as", copy(Tdsc))
-      )
-    result.add:
-      # Add the if statement with the branches built
-      newIfStmt(branches).add:
-        # Add an else clause that raises "not convertible"
+    let intersect = union * T.getUnionType
+    # If there are common types
+    if intersect.len > 0:
+      result = newStmtList()
+      # Generate a temporary to store `x` while we evaluate it
+      let tmp = gensym()
+      result.add newLetStmt(tmp, x)
+      # Build an if statement that converts `x` to `T`, dispatching on `x`
+      # current type
+      let ifStmt = newNimNode(nnkIfStmt)
+      for typ in intersect:
+        # We have to create typedesc because a type symbol does not convert
+        # implicitly.
+        ifStmt.add:
+          nnkElifBranch.newTree(
+            # Condition: tmp of typ
+            infix(copy(tmp), bindSym"of", newTypedesc(typ)),
+            # Expression: tmp as typ as T
+            infix(infix(copy(tmp), bindSym"as", newTypedesc(typ)), bindSym"as", newTypedesc(T))
+          )
+
+      # Add an else clause that raises "not convertible"
+      ifStmt.add:
         nnkElse.newTree:
-          # raise newException(ObjectConversionDefect, "value of type <" & $tmp.type & "> is not convertible to <" & target & ">")
           nnkRaiseStmt.newTree:
             newCall(bindSym"newException", newTypeDesc(bindSym"ObjectConversionDefect")):
-              genAstOpt({}, currentType = newDotExpr(copy(tmp), copy(union.discrimiator)), target = repr(T.getUnionTy.instantiation)):
-                "value of type <" & $currentType & "> is not convertible to <" & target & ">"
+              let currentType = bindSym"currentType".newCall(x)
+              newLit($U & " current type <")
+                .infix(bindSym"&", bindSym"$".newCall(currentType))
+                .infix(bindSym"&", newLit("> is not convertible to " & $V))
 
-type
-  OrTy = distinct NimNode
-    ## A node describing an or[T1, T2, T3, ...] type
-    ##
-    ## The basic representation of this node is: or[<type symbol>...]
-
-converter toNimNode(n: OrTy): NimNode = NimNode(n)
-  ## Converter for OrTy to inherit all of NimNode functions
-
-func numTypes(o: OrTy): int =
-  ## Returns the number of unique types in `o`
-  o.len - 1
-
-proc `{}`(o: OrTy, i: Natural): NimNode =
-  ## Returns the type at position `i`
-  o[i + 1]
-
-iterator types(o: OrTy): NimNode =
-  ## Yield types contained in `o`
-  for idx in 1 ..< o.len:
-    yield o[idx]
-
-func contains(o: OrTy, n: NimNode): bool =
-  ## Returns whether the type of node `n` is a part of `o`.
-  for typ in o.types:
-    if typ.sameType(n):
-      return true
-
-  result = false
-
-func `==`(a, b: OrTy): bool =
-  ## Returns whether two `OrTy` has the same types
-  if a.numTypes == b.numTypes:
-    for typ in a.types:
-      if typ notin b:
-        return false
-
-    result = true
+      # Add the if statement to the expression
+      result.add ifStmt
+    else:
+      error "values of type <" & $U & "> is not convertible to <" & $V & ">", x
 
 proc add(o: OrTy, n: NimNode) =
-  ## Add type `n` into `o` without creating duplicates
-  if n notin o:
+  ## Add type `n` into `o` without creating duplicates, also unwrap typedesc
+  if n.typeKind == ntyTypeDesc:
+    o.add getTypeInstSkip(n)
+  elif n notin o:
     o.NimNode.add n
-
-proc add(o: OrTy, an: openArray[NimNode]) =
-  ## Add all types in array `an` to `o` without creating duplicates
-  for n in an.items:
-    o.add n
-
-proc add(o: OrTy, n: OrTy) =
-  ## Add all types in `n` to `o` without creating duplicates
-  for typ in n:
-    o.add copy(typ)
 
 proc add(o: OrTy, u: UnionTy) =
   ## Add all types in `u` to `o` without creating duplicates
-  for _, field in u.fields:
-    o.add getTypeInst(field)
-
-proc toOrTy(n: NimNode, info: NimNode = nil): OrTy =
-  ## Convert a NimNode into OrTy, deduplicating it in the process
-  # The node used as line information
-  let info = if info.isNil: n else: info
-
-  if n.typeKind != ntyOr:
-    error "node is not an `or` type", info
-  if n.kind != nnkBracketExpr:
-    error "node is not the representation of an `or` type", info
-
-  # First, copy the BracketExpr and the Sym "or"
-  result = OrTy copyNimNode(n)
-  # Use the NimNode version to prevent the OrTy version (which processes types)
-  # from being used.
-  result.NimNode.add copy(n[0])
-
-  # Traverse `n` and collect types
-  let types = block:
-    let list = collect(newSeq):
-      for idx in 1 ..< n.len:
-        copy(n[idx])
-
-    # Sort the list by the representation
-    list.sortedByIt(repr(it))
-
-  # Add the collected types
-  result.add types
-
-  if result.len < 2:
-    error "there is no type in typeclass", info
-
-proc getOrTy(n: NimNode, info: NimNode = nil): OrTy =
-  ## From a typedesc or type expression `n`, produce an `OrTy`
-  let info = if info.isNil: n else: info
-
-  case n.typeKind
-  of ntyTypeDesc:
-    result = getOrTy(getType(n)[1], info)
-  of ntyOr:
-    result = toOrTy(n, info)
-  else:
-    error "node is not a type class, but: " & $n.typeKind, info
+  for _, _, typ in u.variants:
+    o.add copy(typ)
 
 func unionsUnpacked(o: OrTy): OrTy =
   ## Produce a version of `o` with all `union` types unpacked
@@ -397,10 +194,13 @@ func unionsUnpacked(o: OrTy): OrTy =
   result.add o[0]
 
   for typ in o.types:
-    if typ.isUnionTy:
-      result.add getUnionTy(typ)
+    let union = getUnionType(typ)
+    if union.isNil:
+      result.add copy(typ)
     else:
-      result.add typ
+      # If it's an union, iterate through the fields and add all types
+      for _, _, typ in union.variants:
+        result.add typ
 
 type
   UnionTable = distinct CacheSeq
@@ -411,35 +211,65 @@ const Unions = UnionTable"io.github.leorize.union"
 proc contains(u: UnionTable, o: OrTy): bool =
   ## Check if `o` is in `u`
   for n in u.CacheSeq.items:
-    if n[0].toOrTy == o:
+    if n[0].OrTy == o:
       return true
 
 proc `[]`(u: UnionTable, o: OrTy): NimNode =
   ## Returns the symbol associated with `o`. Raises `KeyError` if the symbol
   ## does not exist
   for n in u.CacheSeq.items:
-    if n[0].toOrTy == o:
+    if n[0].OrTy == o:
       return copy(n[1])
 
 proc add(u: UnionTable, o: OrTy, sym: NimNode) =
   ## Add mapping from `o` to `sym` to table `u`. Raises `KeyError` if
-  ## `o` is already in the table
+  ## `o` is already in the table.
   if o in u:
     raise newException(KeyError, repr(o) & " is already in the table")
 
   u.CacheSeq.add nnkPar.newTree(copy(o), copy(sym))
 
-func unionInstantiation(o: OrTy): NimNode =
-  ## Produce the AST needed to instantiate an union type from `o`
-  result = newNimNode(nnkCall)
-  result.add ident"union"
+func unionTypeName(o: OrTy): string =
+  ## Produce the type name for an union from `o`.
+
+  # Produce the AST for union(T1 | T2 | ...)
+  let node = newNimNode(nnkCall)
+  node.add ident"union"
+
+  # Accumulate types from `o` and turn it into `T1 | T2 | ...`
   var typExpr: NimNode
   for typ in o.types:
     if typExpr.isNil:
       typExpr = typ
     else:
-      typExpr = nnkInfix.newTree(bindSym"|", typExpr, typ)
-  result.add typExpr
+      typExpr = nnkInfix.newTree(ident"|", typExpr, typ)
+
+  # Add the AST to the call node
+  node.add typExpr
+
+  # Render it
+  result = repr(node)
+
+func sorted(o: OrTy): OrTy =
+  ## Sorts the types in `o` in a reasonable manner.
+  ##
+  ## This will dictate the ABI of the union produced from `o`.
+  ##
+  ## Ideally this algorithm would not be dependant on the users' environment
+  ## and input, but it is not the case at the moment
+  # Extract the types and sort by representation
+  let types = block:
+    # Not sure why sorted has side effects, but I can vouch that it doesn't
+    {.cast(noSideEffect).}:
+      toSeq(o.types).sortedByIt(repr(it))
+  # Produce a copy of `o` without the types
+  result = OrTy:
+    copyNimNode(o).add:
+      copy(o[0])
+
+  # Add the collected types
+  for typ in types:
+    result.add copy(typ)
 
 macro unionize(T: typedesc, info: untyped): untyped =
   ## The actual union type builder
@@ -447,15 +277,17 @@ macro unionize(T: typedesc, info: untyped): untyped =
   ## `T` is the typedesc that expands to the typeclass to be processed, and
   ## `info` is the AST of the typeclass the user provided to `union()` for
   ## line information.
-  let orTy = getOrTy(T, info).unionsUnpacked()
+  let orTy = ?.getOrType(T).unionsUnpacked().sorted()
+  if orTy.isNil:
+    error repr(info) & " is not a typeclass", info
 
   # If there is only one type in the typeclass
-  if orTy.numTypes == 1:
+  elif orTy.numTypes == 1:
     # Return it
-    return orTy{0}
+    result = orTy.typeAt(0)
 
   # If an union built from this typeclass already exists
-  if orTy in Unions:
+  elif orTy in Unions:
     # Return its symbol
     result = Unions[orTy]
 
@@ -464,42 +296,29 @@ macro unionize(T: typedesc, info: untyped): untyped =
     result = newStmtList()
 
     let
-      enumDef = newNimNode(nnkEnumTy)
+      enumDef = nnkEnumTy.newTree:
+        newEmptyNode() # we don't have a generic
+      # Symbol for the enum type
       enumTy = gensym(nskType, repr(orTy))
 
-      objDef = newNimNode(nnkObjectTy)
-      objTy = gensym(nskType, repr(orTy.unionInstantiation))
+      unionDef = newUnionType(enumTy)
+      # Symbol for the union type
+      unionTy = gensym(nskType, unionTypeName(orTy))
 
-    enumDef.add newEmptyNode() # enums has an empty node as the first node
-    objDef.add newEmptyNode() # same goes for object definition
-    # Inherit from `Union[void]`, which allows unions to be matched by a
-    # T: Union constraint
-    objDef.add:
-      nnkOfInherit.newTree:
-        nnkBracketExpr.newTree(
-          bindSym"Union",
-          bindSym"void"
-        )
-    objDef.add:
-      # Add the list of fields
-      nnkRecList.newTree:
-        # Add a case object declaration
-        nnkRecCase.newTree:
-          # Add the discrimiator
-          newIdentDefs(ident"type".postfix"*", copy(enumTy))
+    # Copy the line information
+    unionTy.copyLineInfo(info)
+    enumTy.copyLineInfo(info)
 
-    # Collect types from orTy and build the object
-    for idx, typ in enumerate(orTy.types):
+    # Collect types from orTy and build the union
+    for typ in orTy.types:
       # Generate the enum for the current type
       let enm = gensym(nskEnumField, repr(typ))
 
       # Add the enum to the definition
       enumDef.add enm
 
-      # Build the field
-      objDef[^1][^1].add:
-        nnkOfBranch.newTree(enm):
-          newIdentDefs(ident("field" & $idx).postfix("*"), copy(typ))
+      # Add a variant for the type
+      unionDef.add enm, typ
 
     result.add:
       nnkTypeSection.newTree(
@@ -509,19 +328,19 @@ macro unionize(T: typedesc, info: untyped): untyped =
         nnkTypeDef.newTree(
           # Add pragmas to the type
           nnkPragmaExpr.newTree(
-            objTy,
+            unionTy,
             nnkPragma.newTree(ident"final", ident"pure")
           ),
           newEmptyNode(),
-          objDef
+          NimNode(unionDef)
         )
       )
 
     # Add the object type symbol as the last node, making this a type expression
-    result.add copy(objTy)
+    result.add copy(unionTy)
 
     # Cache the built Union
-    Unions.add(orTy, objTy)
+    Unions.add(orTy, unionTy)
 
 template union*(T: untyped): untyped =
   ## Returns the union type corresponding to the given typeclass. The typeclass must
@@ -535,12 +354,10 @@ template union*(T: untyped): untyped =
 
 macro convertible*(T: typedesc[Union]): untyped =
   ## Produce converters to convert to/from union type `T` from/to its inner types implicitly.
-  let unionTy = getUnionTy(T)
+  let union = getUnionType(T)
 
   result = newStmtList()
-  for _, field in unionTy.fields:
-    let typ = getTypeInst(field)
-
+  for _, field, typ in union.variants:
     # Produce converter from typ to union
     let toUnion =
       # converter toUnion(x: typ): T = x as T
