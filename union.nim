@@ -376,3 +376,23 @@ macro convertible*(T: typedesc[Union]): untyped =
         nnkBracketExpr.newTree(bindSym"typedesc", copy(typ))
 
     result.add toTyp
+
+template `<-`*[T; U: Union](dst: var U, src: T): untyped =
+  ## Assigns the value `src` to the union `dst`, applying conversion as needed.
+  dst = src as typedesc[U]
+
+template `==`*[T; U: Union](u: U, x: T): untyped =
+  ## Compares union `u` with `x` only if `u` current type is `T`.
+  ##
+  ## Returns false if `u` current type is not `T`.
+  when contains(typedesc[U], typedesc[T]):
+    let tmp = u
+    tmp of typedesc[T] and tmp as typedesc[T] == x
+  else:
+    {.error: "<" & T.name & "> is not a type in <" & U.name & ">, hence cannot be compared".}
+
+template `==`*[T; U: Union](x: T, u: U): untyped =
+  ## Compares union `u` with `x` only if `u` current type is `T`.
+  ##
+  ## Returns false if `u` current type is not `T`.
+  u == x
