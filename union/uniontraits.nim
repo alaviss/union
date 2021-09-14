@@ -94,7 +94,7 @@ func isUnionTy*(n: NimNode): bool =
   ## Returns whether `n` type is an Union.
   ##
   ## Outside of macros, `x is Union` can be used to match for Union type.
-  isNil getUnionType(n)
+  not isNil getUnionType(n)
 
 proc recCase(u: UnionTy): NimNode =
   ## Returns the case part of the object declaration.
