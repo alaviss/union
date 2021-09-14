@@ -20,7 +20,7 @@ proc search[T, U](x: T, needle: U): auto =
 
   let idx = find(x, needle)
   if idx >= 0:
-    result = x[idx] as typeof(result)
+    result <- x[idx] # sugar for assigning without converting via `as`
 
 assert [1, 2, 42, 20, 1000].search(10) of None
 assert [1, 2, 42, 20, 1000].search(42) as int == 42
