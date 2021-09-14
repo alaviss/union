@@ -10,7 +10,9 @@ type
 suite "Union conversions":
   test "Conversion between inner type and union works":
     let x = 10 as union(int | float)
+    let y = [0, 1, 2] as union(array[0 .. 2, int] | int)
     check x as int == 10
+    check y as array[0 .. 2, int] == [0, 1, 2]
 
   test "Conversion between smaller union and bigger union works":
     let x = 10 as IntFloat
@@ -33,3 +35,4 @@ suite "Union conversions":
     check 10 as union(int | float) == 10
     check 4.0 as union(float | string) == 4.0
     check 10 == (10 as union(int | float))
+    check [0, 1, 2] as union(array[0 .. 2, int] | int) == [0, 1, 2]

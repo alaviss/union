@@ -41,7 +41,7 @@ runnableExamples:
   assert [1, 2, 42, 20, 1000].search(42) as int == 42
 
 import std/[
-  algorithm, macros, macrocache, sequtils, typetraits, options, wrapnils
+  algorithm, macros, macrocache, sequtils, typetraits, options
 ]
 
 import union/[ortraits, typeutils, uniontraits]
@@ -277,14 +277,19 @@ macro unionize(T: typedesc, info: untyped): untyped =
   ## `T` is the typedesc that expands to the typeclass to be processed, and
   ## `info` is the AST of the typeclass the user provided to `union()` for
   ## line information.
-  let orTy = ?.getOrType(T).unionsUnpacked().sorted()
-  if orTy.isNil:
-    error repr(info) & " is not a typeclass", info
+  let orTy = block:
+    let o = getOrType(T)
+
+    if o.isNil:
+      error repr(info) & " is not a typeclass", info
+      return
+    else:
+      o.unionsUnpacked().sorted()
 
   # If there is only one type in the typeclass
-  elif orTy.numTypes == 1:
-    # Return it
-    result = orTy.typeAt(0)
+  if orTy.numTypes == 1:
+    # Raise an error
+    error "there is only one type <" & repr(orTy.typeAt(0)) & "> in the typeclass <" & repr(info) & ">", info
 
   # If an union built from this typeclass already exists
   elif orTy in Unions:
