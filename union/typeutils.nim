@@ -10,6 +10,8 @@
 
 import std/macros
 
+import astutils
+
 const Skippable* = {ntyAlias, ntyTypeDesc}
   ## Type kinds that can be skipped by getTypeSkip
 
@@ -18,7 +20,7 @@ func getTypeSkip*(n: NimNode, skip = Skippable): NimNode =
   ##
   ## See `Skippable` for support type kinds.
   assert skip <= Skippable, "`skip` contains unsupported type kinds: " & $(skip - Skippable)
-  result = getType(n)
+  result = getType(n).applyLineInfo(n)
   if result.typeKind in skip:
     case result.typeKind
     of ntyAlias:
@@ -32,6 +34,7 @@ func getTypeInstSkip*(n: NimNode, skip = Skippable): NimNode =
   ## Obtain the type instantiation of `n`, while skipping through type kinds matching `skip`.
   result = getTypeInst:
     getTypeSkip(n, skip)
+  result = result.applyLineInfo(n)
 
 func newTypedesc*(n: NimNode): NimNode =
   ## Create a typedesc[n]

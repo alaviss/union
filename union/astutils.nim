@@ -135,3 +135,12 @@ func desym*(n: NimNode): NimNode =
 
   result = ident repr(n)
   result.copyLineInfo(n)
+
+func applyLineInfo*(n, info: NimNode): NimNode =
+  ## Produce a copy of `n` with line information from `info` applied to it and
+  ## its children.
+  n.filter do (n: NimNode) -> NimNode:
+    result = copyNimNode(n)
+    result.copyLineInfo(info)
+    for c in n.items:
+      result.add c.applyLineInfo(info)
