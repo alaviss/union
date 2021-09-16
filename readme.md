@@ -14,13 +14,14 @@ import union
 type None = object
   ## A type for not having any data
 
-proc search[T, U](x: T, needle: U): auto =
-  # We have to do this since we have to work on the instantiated type U
+proc search[T, U](x: T, needle: U): union(U | None) =
+  # Assignment can be done via explicit conversion
   result = None() as union(U | None)
 
   let idx = find(x, needle)
   if idx >= 0:
-    result <- x[idx] # sugar for assignment without conversion
+    # Or the `<-` operator which automatically converts the type
+    result <- x[idx]
 
 assert [1, 2, 42, 20, 1000].search(10) of None
 assert [1, 2, 42, 20, 1000].search(42) as int == 42
@@ -29,7 +30,7 @@ assert [1, 2, 42, 20, 1000].search(42) == 42
 # Types that are not active at the moment will simply be treated as not equal
 assert [1, 2, 42, 20, 1000].search(1) != None()
 
-proc `{}`[T](x: seq[T], idx: Natural): auto =
+proc `{}`[T](x: seq[T], idx: Natural): union(T | None) =
   ## An array accessor for seq[T] but doesn't raise if the index is not there
   # Using makeUnion, an expression may return more than one type
   makeUnion:
