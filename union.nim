@@ -29,13 +29,14 @@ runnableExamples:
   type None = object
     ## A type for not having any data
 
-  proc search[T, U](x: T, needle: U): auto =
-    # We have to do this since we have to work on the instantiated type U
+  proc search[T, U](x: T, needle: U): union(U | None) =
+    # Assignment can be done via explicit conversion
     result = None() as union(U | None)
 
     let idx = find(x, needle)
     if idx >= 0:
-      result <- x[idx] # sugar for assignment without conversion
+      # Or the `<-` operator which automatically converts the type
+      result <- x[idx]
 
   assert [1, 2, 42, 20, 1000].search(10) of None
   assert [1, 2, 42, 20, 1000].search(42) as int == 42
@@ -44,7 +45,7 @@ runnableExamples:
   # Types that are not active at the moment will simply be treated as not equal
   assert [1, 2, 42, 20, 1000].search(1) != None()
 
-  proc `{}`[T](x: seq[T], idx: Natural): auto =
+  proc `{}`[T](x: seq[T], idx: Natural): union(T | None) =
     ## An array accessor for seq[T] but doesn't raise if the index is not there
     # Using makeUnion, an expression may return more than one type
     makeUnion:
@@ -60,7 +61,7 @@ import std/[
   algorithm, macros, macrocache, sequtils, typetraits, options
 ]
 
-import union/[ortraits, typeutils, uniontraits]
+import union/[astutils, ortraits, typeutils, uniontraits]
 
 proc infix(a, op, b: NimNode): NimNode =
   ## Produce an infix call
@@ -287,7 +288,31 @@ func sorted(o: OrTy): OrTy =
   for typ in types:
     result.add copy(typ)
 
+func collectGenericParams(o: OrTy): seq[NimNode] =
+  ## Collect all generics parameters in `o`.
+  for typ in o.types:
+    if typ.typeKind == ntyGenericParam:
+      result.add typ
+
+# Forward decl, this is done so that we can refer to union() from
+# unionize().
+proc unionize(T, info: NimNode): NimNode
+
 macro unionize(T: typedesc, info: untyped): untyped =
+  ## The macro wrapper for unionize
+  unionize(T, info)
+
+template union*(T: untyped): untyped =
+  ## Returns the union type corresponding to the given typeclass. The typeclass must
+  ## not contain built-in typeclasses such as `proc`, `ref`, `object`,...
+  ##
+  ## The typeclass may contain other typeclasses, or other unions.
+  ##
+  ## If the typeclass contain one unique type, then that unique type will be returned.
+  type TImpl {.gensym.} = T
+  unionize(TImpl, T)
+
+proc unionize(T, info: NimNode): NimNode =
   ## The actual union type builder
   ##
   ## `T` is the typedesc that expands to the typeclass to be processed, and
@@ -302,6 +327,9 @@ macro unionize(T: typedesc, info: untyped): untyped =
     else:
       o.unionsUnpacked().sorted()
 
+  # Obtain generics from the typeclass
+  let genericParams = orTy.collectGenericParams
+
   # If there is only one type in the typeclass
   if orTy.numTypes == 1:
     # Raise an error
@@ -311,6 +339,63 @@ macro unionize(T: typedesc, info: untyped): untyped =
   elif orTy in Unions:
     # Return its symbol
     result = Unions[orTy]
+
+  # If there are generics in the typeclass
+  elif genericParams.len > 0:
+    # Delay our instantiation by creating a generic type calling `union()` and
+    # return that instead.
+    #
+    # For example:
+    #
+    # union(T | U) =>
+    #   type
+    #     union(T | U)[T_genSym, U_genSym] = union(T | U)
+    #
+    #   union(T | U)[T, U]
+    #
+    # Doing this defers our instantiation to the point where the compiler
+    # instantiate the generated generic type, of which there won't be generic
+    # params anymore and everything works normally.
+    let
+      surrogateType = genSym(nskType, unionTypeName(orTy))
+      # Generic parameters for our surrogate type.
+      #
+      # The key is the parameter we are given with.
+      # The value is what to replace it with. Ideally would be to generate
+      # random parameters, but the compiler freaks out if we use anything
+      # with a different name than the original...
+      paramMap = genericParams.mapIt((it, desym(it)))
+
+      # Build a type definition for our surrogate
+      typeSection =
+        nnkTypeSection.newTree:
+          nnkTypeDef.newTree(
+            copy(surrogateType),
+            # Fill the generic params with what we generated.
+            nnkGenericParams.newTree(
+              paramMap.mapIt newIdentDefs(it[1], newEmptyNode(), newEmptyNode())
+            ),
+            # Generate the call to union, replacing all references to the old
+            # parameter with the ones we generated.
+            newCall(bindSym"union", orTy.instantiation.multiReplace(paramMap))
+          )
+
+      # Build the instantiation for our surrogate
+      instantiation = newNimNode(nnkBracketExpr)
+
+    # Add the type symbol
+    instantiation.add copy(surrogateType)
+    # Add the generic parameters
+    for param in genericParams:
+      # The compiler freaks out if we straight up use the parameter symbol,
+      # so desym it.
+      instantiation.add desym(param)
+
+    # Emit an expression with the type section and instantiation
+    result = newStmtList(
+      typeSection,
+      instantiation
+    )
 
   # Otherwise build the type
   else:
@@ -363,16 +448,6 @@ macro unionize(T: typedesc, info: untyped): untyped =
     # Cache the built Union
     Unions.add(orTy, unionTy)
 
-template union*(T: untyped): untyped =
-  ## Returns the union type corresponding to the given typeclass. The typeclass must
-  ## not contain built-in typeclasses such as `proc`, `ref`, `object`,...
-  ##
-  ## The typeclass may contain other typeclasses, or other unions.
-  ##
-  ## If the typeclass contain one unique type, then that unique type will be returned.
-  type TImpl {.gensym.} = T
-  unionize(TImpl, T)
-
 macro convertible*(T: typedesc[Union]): untyped =
   ## Produce converters to convert to/from union type `T` from/to its inner types implicitly.
   let union = getUnionType(T)
@@ -417,101 +492,6 @@ template `==`*[T; U: Union](x: T, u: U): untyped =
   ##
   ## Returns false if `u` current type is not `T`.
   u == x
-
-proc exprFilter(n: NimNode, fn: proc(n: NimNode): NimNode): NimNode =
-  ## Produce a new tree from `n` by running `fn` on all things that looks like
-  ## an expression tail.
-  ##
-  ## This is because we are working on untyped AST, thus we have little details
-  ## on whether something is an expression.
-  proc branchFilter(n: NimNode, fn: proc(n: NimNode): NimNode): NimNode =
-    ## Shared logic for filtering elif/of/else/except/finally branches
-    case n.kind
-    of nnkElifBranch, nnkElifExpr:
-      # Copy the node and condition
-      result = copyNimNode(n).add(copy n[0]):
-        # Rewrite body
-        exprFilter(n.last, fn)
-    of nnkOfBranch, nnkExceptBranch:
-      # Copy the node
-      result = copyNimNode(n)
-      # Copy matching constraints (all node but last)
-      for idx in 0 ..< n.len - 1:
-        result.add copy(n[idx])
-
-      # Rewrite body
-      result.add exprFilter(n.last, fn)
-    of nnkElse, nnkElseExpr:
-      # Copy the node and rewrite body
-      result = copyNimNode(n).add:
-        exprFilter(n.last, fn)
-    of nnkFinally:
-      # Copy the node, it can't have expression
-      result = copy(n)
-    else:
-      raise newException(Defect):
-        "unknown node kind passed to branchFilter: " & $n.kind
-
-  case n.kind
-  of nnkStmtList, nnkStmtListExpr:
-    result = copyNimNode(n)
-
-    for idx in 0 ..< n.len - 1: # copy everything but the last node
-      result.add copy(n[idx])
-
-    # run the filter on the last node
-    result.add exprFilter(n.last, fn)
-  of nnkBlockStmt, nnkBlockExpr, nnkPragmaBlock:
-    # Copy the node and the label/pragma list
-    result = copyNimNode(n).add(copy n[0]):
-      # Run filter on block body
-      exprFilter(n.last, fn)
-  of nnkIfStmt, nnkIfExpr, nnkWhenStmt:
-    # Copy the node
-    result = copyNimNode(n)
-
-    # Rewrite children
-    for child in n.items:
-      result.add branchFilter(child, fn)
-  of nnkCaseStmt:
-    # Copy the node
-    result = copyNimNode(n)
-
-    # Rewrite children
-    for idx, child in n.pairs:
-      if idx == 0:
-        # This is the matching constraint, copy as is
-        result.add copy(child)
-      else:
-        result.add branchFilter(child, fn)
-  of nnkTryStmt:
-    # Copy the node
-    result = copyNimNode(n)
-
-    for idx, child in n.pairs:
-      if idx == 0:
-        # Rewrite the try body
-        result.add exprFilter(child, fn)
-      else:
-        # Process branches
-        result.add branchFilter(child, fn)
-  else:
-    # If it's not a known expression block type, it's an expression
-    result = fn(n)
-    if result.isNil:
-      result = copy(n)
-
-proc filter(n: NimNode, fn: proc(n: NimNode): NimNode): NimNode =
-  ## Produce a new tree by running `fn` on all nodes.
-  ##
-  ## If `fn` returns non-nil, filter will not recurse into that node.
-  ## Otherwise, the `n` will be copied and filter will apply `fn`
-  ## on all of `n` children.
-  result = fn(n)
-  if result.isNil:
-    result = copyNimNode(n)
-    for c in n.items:
-      result.add filter(c, fn)
 
 template unionExpr(T, expr: typed) {.pragma.}
   ## Tag the expression `expr` with a type to be collected by

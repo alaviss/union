@@ -58,7 +58,7 @@ func `==`*(a, b: OrTy): bool =
 proc add*(o: OrTy, n: NimNode) =
   ## Add type instantiation of `n` into `o` without creating duplicates.
   if n notin o:
-    o.NimNode.add getTypeInst(n)
+    o.NimNode.add getTypeInstSkip(n)
 
 proc add*(o: OrTy, an: openArray[NimNode]) =
   ## Add all instantiation of types in array `an` to `o` without creating
@@ -85,3 +85,11 @@ func getOrType*(n: NimNode): OrTy =
     # Add the types in so that they are de-duplicated
     for idx in 1 ..< typ.len:
       result.add copy(typ[idx])
+
+func instantiation*(o: OrTy): NimNode =
+  ## Generate the AST needed to instantiate `o`.
+  for typ in o.types:
+    if result.isNil:
+      result = copy(typ)
+    else:
+      result = nnkInfix.newTree(bindSym"|", result, typ)
