@@ -57,8 +57,9 @@ runnableExamples:
   assert @[1]{2} of None
   assert @[42]{0} == 42
 
+import std/macros except sameType
 import std/[
-  algorithm, macros, macrocache, sequtils, typetraits, options
+  algorithm, macrocache, sequtils, typetraits, options
 ]
 
 import union/[astutils, ortraits, typeutils, uniontraits]
@@ -136,7 +137,7 @@ macro `as`*[U: Union](x: U, T: typedesc): untyped =
   let union = x.getUnionType()
 
   # Get the variant with type T
-  let variant = union.getVariant(getTypeSkip T)
+  let variant = union.getVariant(getTypeInstSkip T)
   if variant.isSome:
     # Simply emit the access to `field`
     result = newDotExpr(x, copy(variant.get.field))

@@ -8,7 +8,8 @@
 
 ## Introspection tools for unions created by the `union` macro.
 
-import std/[macros, options]
+import std/macros except sameType
+import std/options
 import typeutils
 
 type
@@ -167,7 +168,7 @@ func contains*(a, b: UnionTy): bool =
 
 macro contains*(U: typedesc[Union], T: typedesc): bool =
   ## Returns whether the type `T` is in the union type `U`.
-  result = newLit(T.getTypeSkip() in U.getUnionType)
+  result = newLit(T.getTypeInstSkip() in U.getUnionType)
 
 macro contains*[U, V: Union](A: typedesc[U], B: typedesc[V]): bool =
   ## Returns whether the union type `B` is a subset of union type `A`
