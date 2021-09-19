@@ -8,7 +8,7 @@
 
 ## Introspection tools for Nim typeclasses, ie. `T1 | T2 | T3`.
 
-import std/macros
+import std/macros except sameType
 import typeutils
 
 type
@@ -75,7 +75,7 @@ func getOrType*(n: NimNode): OrTy =
   ## Get `OrTy` from node `n`.
   ##
   ## Returns `nil` if `n` is not a typeclass.
-  let typ = getTypeSkip(n)
+  let typ = getTypeImplSkip(n)
   if typ.typeKind == ntyOr and typ.kind == nnkBracketExpr:
     # Produce a copy of BracketExpr(Sym "or")
     result = OrTy:

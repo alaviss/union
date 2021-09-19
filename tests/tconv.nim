@@ -36,3 +36,9 @@ suite "Union conversions":
     check 4.0 as union(float | string) == 4.0
     check 10 == (10 as union(int | float))
     check [0, 1, 2] as union(array[0 .. 2, int] | int) == [0, 1, 2]
+
+  test "Conversion between generic alias and union":
+    type
+      A[T] = T
+
+    check A[float](1.0) as union(int | float) == 1.0
