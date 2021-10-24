@@ -84,7 +84,7 @@ macro `of`*[U: Union](x: U, T: typedesc): bool =
     # $ is used for `U` because it's a typedesc (the value not the node) in this context
     error "type <" & repr(T) & "> is not a part of <" & $U & ">", T
 
-macro `of`*(x: Union, T: typedesc[Union]): bool =
+macro `of`*[U, V: Union](x: U, T: typedesc[V]): bool =
   ## Returns whether the union `x` is having a value convertible to union `T`
   let
     union = x.getUnionType()
@@ -99,8 +99,9 @@ macro `of`*(x: Union, T: typedesc[Union]): bool =
       newLit false
     else:
       # Create a set of enum corresponding to the intersection
-      let enums = newNimNode(nnkCurlyExpr)
-      enums.add intersect
+      let enums = newNimNode(nnkCurly)
+      for typ in intersect:
+        enums.add copy union.getVariant(typ).get.enm
 
       # Produce the check expression
       infix(newCall(bindSym"currentType", x), bindSym"in", enums)
