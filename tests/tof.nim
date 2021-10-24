@@ -37,3 +37,10 @@ suite "`of` operator test":
 
     var y = float(1.0) as union(int | B[float])
     check y of B[float]
+
+  test "`of` works for union types":
+    var x = 10 as union(int | float)
+
+    check not(x of union(float | string))
+    check x of union(int | string)
+    check x of typeof(x)
