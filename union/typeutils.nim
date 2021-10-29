@@ -57,6 +57,20 @@ func newTypedesc*(n: NimNode): NimNode =
   nnkBracketExpr.newTree(bindSym"typedesc", copy(n))
 
 func sameType*(a, b: NimNode): bool =
-  ## A variant of sameType to workaround https://github.com/nim-lang/Nim/issues/18867
+  ## A variant of sameType to workaround:
+  ##
+  ## * https://github.com/nim-lang/Nim/issues/18867
+  ##
+  ## * https://github.com/nim-lang/Nim/issues/19072
   {.warning: "compiler bug workaround; see https://github.com/nim-lang/Nim/issues/18867".}
-  macros.sameType(a, b) or macros.sameType(b, a)
+  if macros.sameType(a, b) or macros.sameType(b, a):
+    {.warning: "compiler bug workaround; see https://github.com/nim-lang/Nim/issues/19072".}
+    # In case the types are generic parmeters
+    if a.typeKind == ntyGenericParam and b.typeKind == ntyGenericParam:
+      # The result will be whether they are the same symbol. This is due to
+      # sameType() treating uninstantiated generics to be the same.
+      a == b
+    else:
+      true
+  else:
+    false
