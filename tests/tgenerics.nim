@@ -34,8 +34,15 @@ suite "generic unions test":
       else:
         check false, "this branch should not run"
 
+    proc foobar[T, U](x: union(T | U)): T =
+      if x of T:
+        result = x as T
+      else:
+        check false, "this branch should not run"
+
     check foo(10) is union(int | None)
     check bar[float](4.2 as union(float | None)) is float
+    check foobar[int, float](10 as union(float | int)) is int
 
   test "nested generic union within proc definition":
     skip "Not working":
