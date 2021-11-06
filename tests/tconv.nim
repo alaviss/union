@@ -42,3 +42,34 @@ suite "Union conversions":
       A[T] = T
 
     check A[float](1.0) as union(int | float) == 1.0
+
+  test "unpack() correctly dispatches":
+    var x: union(int | float)
+    x <- 10
+
+    unpack(x, upk):
+      check upk is int
+
+    x <- 1.0
+    unpack(x):
+      check it is float
+
+  test "when can be used in unpack body":
+    for i in 1 .. 4:
+      var x = makeUnion:
+        if i mod 2 == 0:
+          10
+        else:
+          1.0
+
+      unpack(x, upk):
+        if i mod 2 == 0:
+          when upk is int:
+            discard
+          else:
+            fail "This branch expects union to be int"
+        else:
+          when upk is float:
+            discard
+          else:
+            fail "This branch expects union to be float"

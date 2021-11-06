@@ -41,6 +41,30 @@ proc `{}`[T](x: seq[T], idx: Natural): union(T | None) =
 
 assert @[1]{2} of None
 assert @[42]{0} == 42
+
+import json
+
+# With unpack(), dispatching based on the union type at runtime is possible!
+var x = 42 as union(int | string)
+
+block:
+  let j =
+    unpack(x):
+      # The unpacked variable name is `it` by default
+      %it
+
+  assert j.kind == JInt
+
+x <- "string"
+
+block:
+  let j =
+    # You can give the unpacked variable a different name via the second
+    # parameter, too.
+    unpack(x, upk):
+      %upk
+
+  assert j.kind == JString
 ```
 
 See the [documentation][0] for more information on features and limitations of
