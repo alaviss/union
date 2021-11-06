@@ -57,9 +57,33 @@ runnableExamples:
   assert @[1]{2} of None
   assert @[42]{0} == 42
 
+  import json
+
+  # With unpack(), dispatching based on the union type at runtime is possible!
+  var x = 42 as union(int | string)
+
+  block:
+    let j =
+      unpack(x):
+        # The unpacked variable name is `it` by default
+        %it
+
+    assert j.kind == JInt
+
+  x <- "string"
+
+  block:
+    let j =
+      # You can give the unpacked variable a different name via the second
+      # parameter, too.
+      unpack(x, upk):
+        %upk
+
+    assert j.kind == JString
+
 import std/macros except sameType
 import std/[
-  algorithm, macrocache, sequtils, typetraits, options
+  algorithm, macrocache, sequtils, typetraits, options, genasts
 ]
 
 import union/[astutils, ortraits, typeutils, uniontraits]
@@ -594,3 +618,76 @@ macro makeUnion*(expr: untyped): untyped =
             # For each "expression tail", call unionTail to process it
             newCall(bindSym"unionTail"):
               copy(n)
+
+macro unpack*[T: Union](u: T, ident, body: untyped): untyped =
+  ## Unpack the union `u` into a variable with its current type at runtime
+  ## under the name specified in `ident`, then run `body` with variable `ident`
+  ## exposed.
+  runnableExamples:
+    var u = 42 as union(int | string | float)
+
+    unpack(u, unpacked):
+      # `unpacked` will be available as a form of `int | string | float`
+      # generic.
+      #
+      # This means the type can be dispatched at compile-time or the parmeter
+      # can be fed into a generic!
+      when unpacked is int:
+        assert(unpacked == 42)
+      elif unpacked is string:
+        assert(unpacked == "str")
+      else:
+        discard
+
+  let union = getUnionType(u)
+
+  result = newStmtList()
+  # Temporary storage for the union
+  let tmp = genSym()
+  # Declare the variable
+  result.add newLetStmt(tmp, u)
+
+  let caseStmt = newNimNode(nnkCaseStmt)
+  # Add the current type field
+  caseStmt.add:
+    bindSym"currentType".newCall copy(tmp)
+
+  # Generates an of branch for every field
+  for enm, field, _ in union.variants:
+    # Turn `typ` into a `typedesc[typ]` since the compiler won't accept `typ`
+    # as a typedesc when emitted by a macro.
+    caseStmt.add:
+      # Add a `tmp of typedesc[typ]` branch
+      nnkOfBranch.newTree(copy(enm)):
+        newStmtList(
+          # Declare the variable
+          newLetStmt(ident, nnkDotExpr.newTree(copy(tmp), copy(field))),
+          # Insert a copy of the body
+          copy body
+        )
+
+  # Add the if statement to the result
+  result.add caseStmt
+
+macro unpack*[T: Union](u: T, body: untyped): untyped =
+  ## Unpack the union `u` into the variable `it` with its current type at runtime,
+  ## then run `body` with `it` exposed.
+  ##
+  ## This is an overload of `unpack(T, untyped, untyped) <#union,T,untyped,untyped>_`.
+  runnableExamples:
+    var u = 42 as union(int | string | float)
+
+    unpack(u):
+      # `it` will be available as a form of `int | string | float` generic.
+      #
+      # This means the type can be dispatched at compile-time or the parameter
+      # can be fed into a generic!
+      when it is int:
+        assert(it == 42)
+      elif it is string:
+        assert(it == "str")
+      else:
+        discard
+
+  let it = ident"it"
+  getAst unpack(u, it, body)
