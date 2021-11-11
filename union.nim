@@ -706,3 +706,11 @@ func `==`*[U, V: Union](a: U, b: V): bool {.inline.} =
           false
   else:
     false
+
+proc `$`*[T: Union](u: T): string =
+  ## Stringify `u` based on its current type in the format `type(value)`.
+  ## Its main purpose is to enable debugging.
+  unpack(u):
+    result = $typeof(it) & "("
+    result.addQuoted it
+    result.add ")"
