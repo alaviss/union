@@ -27,3 +27,7 @@ suite "Union type introspection":
 
     check isUnionTy(union(int | float))
     check not isUnionTy(int)
+
+  test "hasCommonTypes()":
+    check hasCommonTypes(union(int | float), union(int | string))
+    check not hasCommonTypes(union(int | float | string | seq[byte]), union(array[1, char] | seq[int] | Natural))
