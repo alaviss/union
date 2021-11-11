@@ -503,7 +503,7 @@ template `<-`*[T; U: Union](dst: var U, src: T): untyped =
   ## Assigns the value `src` to the union `dst`, applying conversion as needed.
   dst = src as typedesc[U]
 
-template `==`*[T; U: Union](u: U, x: T): untyped =
+template `==`*[T: not Union; U: Union](u: U, x: T): untyped =
   ## Compares union `u` with `x` only if `u` current type is `T`.
   ##
   ## Returns false if `u` current type is not `T`.
@@ -513,7 +513,7 @@ template `==`*[T; U: Union](u: U, x: T): untyped =
   else:
     {.error: "<" & T.name & "> is not a type in <" & U.name & ">, hence cannot be compared".}
 
-template `==`*[T; U: Union](x: T, u: U): untyped =
+template `==`*[T: not Union; U: Union](x: T, u: U): untyped =
   ## Compares union `u` with `x` only if `u` current type is `T`.
   ##
   ## Returns false if `u` current type is not `T`.
@@ -691,3 +691,18 @@ macro unpack*[T: Union](u: T, body: untyped): untyped =
 
   let it = ident"it"
   getAst unpack(u, it, body)
+
+func `==`*[U, V: Union](a: U, b: V): bool {.inline.} =
+  ## Returns whether the unions `a` and `b` are of the same runtime type and
+  ## value.
+  ##
+  ## Returns false if `a` and `b` has no types in common.
+  when U.hasCommonTypes(V):
+    unpack(a, upkA):
+      unpack(b, upkB):
+        when upkA is typeof(upkB):
+          upkA == upkB
+        else:
+          false
+  else:
+    false

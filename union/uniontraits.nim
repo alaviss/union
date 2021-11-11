@@ -180,6 +180,11 @@ func `*`*(a, b: UnionTy): seq[NimNode] =
     if typ in b:
       result.add getTypeInst(typ)
 
+macro hasCommonTypes*[U, V: Union](A: typedesc[U], B: typedesc[V]): bool =
+  ## Returns whether the union type `A` and `B` has any types in common
+  result = newLit:
+    len(A.getUnionType * B.getUnionType) > 0
+
 func add*(u: UnionTy, enm, typ: NimNode) =
   ## Add a variant for `typ` associated with enum `enm` to union definition `u`.
   ##

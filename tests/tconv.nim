@@ -73,3 +73,9 @@ suite "Union conversions":
             discard
           else:
             fail "This branch expects union to be float"
+
+  test "Auto-conversion for equivalence between unions":
+    check (10 as union(int | float)) == (10 as union(int | float))
+    check (10 as union(int | float)) == (10 as union(int | string))
+    check ("string" as union(int | float | string | seq[string])) == ("string" as union(int | string))
+    check ("string" as union(int | float | string | seq[string])) != (42 as union(int | string))
