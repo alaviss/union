@@ -79,3 +79,9 @@ suite "Union conversions":
     check (10 as union(int | float)) == (10 as union(int | string))
     check ("string" as union(int | float | string | seq[string])) == ("string" as union(int | string))
     check ("string" as union(int | float | string | seq[string])) != (42 as union(int | string))
+
+  test "Auto string representation for unions":
+    check $(10 as union(int | float)) == "int(10)"
+    check $("string" as union(int | string)) == "string(\"string\")"
+    check $([1, 2] as union(int | array[2, int])) == "array[0..1, int]([1, 2])"
+    check $(@[1, 2] as union(string | seq[int])) == "seq[int](@[1, 2])"
