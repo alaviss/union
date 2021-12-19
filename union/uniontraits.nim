@@ -36,6 +36,10 @@ func `==`*(a: typeof(nil), b: UnionTy): bool {.borrow.}
   ## Allow comparing an UnionTy with nil
 func isNil*(u: UnionTy): bool {.borrow.}
   ## Allow comparing an UnionTy with nil
+func sameType*(a: NimNode, b: UnionTy): bool {.borrow.}
+  ## Allow comparing the type of a node with UnionTy
+func sameType*(a: UnionTy, b: NimNode): bool {.borrow.}
+  ## Allow comparing the type of a node with UnionTy
 
 func inherits(n: NimNode): NimNode =
   ## If `n` is a nnkObjectTy, returns the inherited type.
