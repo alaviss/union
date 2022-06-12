@@ -1,0 +1,13 @@
+OrTy	union/ortraits.html#OrTy	ortraits: OrTy	
+toNimNode	union/ortraits.html#toNimNode.c,OrTy	ortraits: toNimNode(n: OrTy): NimNode	
+numTypes	union/ortraits.html#numTypes,OrTy	ortraits: numTypes(o: OrTy): int	
+typeAt	union/ortraits.html#typeAt,NimNode,Natural	ortraits: typeAt(o: NimNode; idx: Natural): NimNode	
+types	union/ortraits.html#types.i,OrTy	ortraits: types(o: OrTy): NimNode	
+contains	union/ortraits.html#contains,OrTy,NimNode	ortraits: contains(o: OrTy; n: NimNode): bool	
+contains	union/ortraits.html#contains,OrTy,OrTy	ortraits: contains(a: OrTy; b: OrTy): bool	
+`==`	union/ortraits.html#==,OrTy,OrTy	ortraits: `==`(a, b: OrTy): bool	
+add	union/ortraits.html#add,OrTy,NimNode	ortraits: add(o: OrTy; n: NimNode)	
+add	union/ortraits.html#add,OrTy,openArray[NimNode]	ortraits: add(o: OrTy; an: openArray[NimNode])	
+add	union/ortraits.html#add,OrTy,OrTy	ortraits: add(o: OrTy; n: OrTy)	
+getOrType	union/ortraits.html#getOrType,NimNode	ortraits: getOrType(n: NimNode): OrTy	
+instantiation	union/ortraits.html#instantiation,OrTy	ortraits: instantiation(o: OrTy): NimNode	

@@ -1,0 +1,7 @@
+Skippable	union/typeutils.html#Skippable	typeutils: Skippable	
+SkippableInst	union/typeutils.html#SkippableInst	typeutils: SkippableInst	
+getTypeSkip	union/typeutils.html#getTypeSkip,NimNode	typeutils: getTypeSkip(n: NimNode; skip = Skippable): NimNode	
+getTypeInstSkip	union/typeutils.html#getTypeInstSkip,NimNode	typeutils: getTypeInstSkip(n: NimNode; skip = SkippableInst): NimNode	
+getTypeImplSkip	union/typeutils.html#getTypeImplSkip,NimNode	typeutils: getTypeImplSkip(n: NimNode; skip = Skippable): NimNode	
+newTypedesc	union/typeutils.html#newTypedesc,NimNode	typeutils: newTypedesc(n: NimNode): NimNode	
+sameType	union/typeutils.html#sameType,NimNode,NimNode	typeutils: sameType(a, b: NimNode): bool	

@@ -1,0 +1,21 @@
+Union	union/uniontraits.html#Union	uniontraits: Union	
+UnionTy	union/uniontraits.html#UnionTy	uniontraits: UnionTy	
+`==`	union/uniontraits.html#==,UnionTy,	uniontraits: `==`(a: UnionTy; b: typeof(nil)): bool	
+`==`	union/uniontraits.html#==,,UnionTy	uniontraits: `==`(a: typeof(nil); b: UnionTy): bool	
+isNil	union/uniontraits.html#isNil,UnionTy	uniontraits: isNil(u: UnionTy): bool	
+sameType	union/uniontraits.html#sameType,NimNode,UnionTy	uniontraits: sameType(a: NimNode; b: UnionTy): bool	
+sameType	union/uniontraits.html#sameType,UnionTy,NimNode	uniontraits: sameType(a: UnionTy; b: NimNode): bool	
+newUnionType	union/uniontraits.html#newUnionType,NimNode	uniontraits: newUnionType(enumType: NimNode): UnionTy	
+getUnionType	union/uniontraits.html#getUnionType,NimNode	uniontraits: getUnionType(n: NimNode): UnionTy	
+isUnionTy	union/uniontraits.html#isUnionTy,NimNode	uniontraits: isUnionTy(n: NimNode): bool	
+typeField	union/uniontraits.html#typeField,UnionTy	uniontraits: typeField(u: UnionTy): NimNode	
+currentType	union/uniontraits.html#currentType.m,T	uniontraits: currentType[T: Union](x: T): untyped	
+variants	union/uniontraits.html#variants.i,UnionTy	uniontraits: variants(u: UnionTy): tuple[enm, field, typ: NimNode]	
+getVariant	union/uniontraits.html#getVariant,UnionTy,NimNode	uniontraits: getVariant(u: UnionTy; n: NimNode): Option[tuple[enm, field, typ: NimNode]]	
+contains	union/uniontraits.html#contains,UnionTy,NimNode	uniontraits: contains(u: UnionTy; n: NimNode): bool	
+contains	union/uniontraits.html#contains,UnionTy,UnionTy	uniontraits: contains(a, b: UnionTy): bool	
+contains	union/uniontraits.html#contains.m,typedesc[Union],typedesc	uniontraits: contains(U: typedesc[Union]; T: typedesc): bool	
+contains	union/uniontraits.html#contains.m,typedesc[U],typedesc[V]	uniontraits: contains[U, V: Union](A: typedesc[U]; B: typedesc[V]): bool	
+`*`	union/uniontraits.html#*,UnionTy,UnionTy	uniontraits: `*`(a, b: UnionTy): seq[NimNode]	
+hasCommonTypes	union/uniontraits.html#hasCommonTypes.m,typedesc[U],typedesc[V]	uniontraits: hasCommonTypes[U, V: Union](A: typedesc[U]; B: typedesc[V]): bool	
+add	union/uniontraits.html#add,UnionTy,NimNode,NimNode	uniontraits: add(u: UnionTy; enm, typ: NimNode)	

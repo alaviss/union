@@ -1,0 +1,7 @@
+FilterFn	union/astutils.html#FilterFn	astutils: FilterFn	
+exprFilter	union/astutils.html#exprFilter,NimNode,FilterFn	astutils: exprFilter(n: NimNode; fn: FilterFn): NimNode	
+filter	union/astutils.html#filter,NimNode,FilterFn	astutils: filter(n: NimNode; fn: FilterFn): NimNode	
+hash	union/astutils.html#hash,NimNode	astutils: hash(n: NimNode): Hash	
+multiReplace	union/astutils.html#multiReplace,NimNode,varargs[tuple[NimNode,NimNode]]	astutils: multiReplace(n: NimNode; replacements: varargs[tuple[orig, replace: NimNode]]): NimNode	
+desym	union/astutils.html#desym,NimNode	astutils: desym(n: NimNode): NimNode	
+applyLineInfo	union/astutils.html#applyLineInfo,NimNode,NimNode	astutils: applyLineInfo(n, info: NimNode): NimNode	

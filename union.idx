@@ -1,0 +1,15 @@
+`of`	union.html#of.m,U,typedesc	union: `of`[U: Union](x: U; T: typedesc): bool	
+`of`	union.html#of.m,U,typedesc[V]	union: `of`[U, V: Union](x: U; T: typedesc[V]): bool	
+`as`	union.html#as.m,typed,typedesc[Union]	union: `as`(x: typed; U: typedesc[Union]): untyped	
+`as`	union.html#as.m,U,typedesc	union: `as`[U: Union](x: U; T: typedesc): untyped	
+`as`	union.html#as.m,U,typedesc[V]	union: `as`[U, V: Union](x: U; T: typedesc[V]): untyped	
+union	union.html#union.t,untyped	union: union(T: untyped): untyped	
+convertible	union.html#convertible.m,typedesc[Union]	union: convertible(T: typedesc[Union]): untyped	
+`&lt;-`	union.html#<-.t,U,T	union: `&lt;-`[T; U: Union](dst: var U; src: T): untyped	
+`==`	union.html#==.t,U,T	union: `==`[T: not Union; U: Union](u: U; x: T): untyped	
+`==`	union.html#==.t,T,U	union: `==`[T: not Union; U: Union](x: T; u: U): untyped	
+makeUnion	union.html#makeUnion.m,untyped	union: makeUnion(expr: untyped): untyped	
+unpack	union.html#unpack.m,T,untyped,untyped	union: unpack[T: Union](u: T; ident, body: untyped): untyped	
+unpack	union.html#unpack.m,T,untyped	union: unpack[T: Union](u: T; body: untyped): untyped	
+`==`	union.html#==,U,V	union: `==`[U, V: Union](a: U; b: V): bool	
+`$`	union.html#$,T	union: `$`[T: Union](u: T): string	
