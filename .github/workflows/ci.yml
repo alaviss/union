@@ -49,7 +49,7 @@ jobs:
           # Ignore failures for older Nim
           cp htmldocs/{the,}index.html || true
 
-      - uses: actions/upload-pages-artifact@v1.0.8
+      - uses: actions/upload-pages-artifact@v1.0.9
         with:
           path: union/htmldocs
 
