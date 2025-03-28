@@ -56,12 +56,23 @@ func newTypedesc*(n: NimNode): NimNode =
   ## Create a typedesc[n]
   nnkBracketExpr.newTree(bindSym"typedesc", copy(n))
 
+
+proc skipSink(n: NimNode): NimNode = 
+  if n.kind == nnkBracketExpr and n[0].eqIdent"sink":
+    n[1]
+  else:
+    n
+
 func sameType*(a, b: NimNode): bool =
   ## A variant of sameType to workaround:
   ##
   ## * https://github.com/nim-lang/Nim/issues/18867
   ##
   ## * https://github.com/nim-lang/Nim/issues/19072
+
+  let
+    a = a.skipSink()
+    b = b.skipSink()
 
   # XXX: compiler bug workaround; see https://github.com/nim-lang/Nim/issues/18867
   if macros.sameType(a, b) or macros.sameType(b, a):
