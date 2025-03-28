@@ -1,14 +1,33 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        branch: [devel]
+        compiler:
+          - name: nim
+            version: version-2-0
+          - name: nim
+            version: devel
+          - name: nimskull
+            version: "*"
+        include:
+          - compiler:
+              name: nim
+              version: devel
+            uploaddocs: true
 
-    name: "Nim ${{ matrix.branch }}"
+    name: ${{ matrix.compiler.name }} ${{ matrix.compiler.version }}
     runs-on: ubuntu-latest
 
     defaults:
@@ -18,45 +37,73 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: union
 
       - name: Setup Nim
-        uses: alaviss/setup-nim@0.1.1
+        if: matrix.compiler.name == 'nim'
+        uses: alaviss/setup-nim@f81f2a6d1505ab32f440ec9d8adbb81e949d3bf0 # 0.1.1
         with:
           path: nim
-          version: ${{ matrix.branch }}
+          version: ${{ matrix.compiler.version }}
+          architecture: ${{ matrix.arch }}
+
+      - name: Setup nimskull
+        id: nimskull
+        if: matrix.compiler.name == 'nimskull'
+        uses: nim-works/setup-nimskull@053c4ce345b489a68c85b18fb28849d446eb64a4 # 0.1.2
+        with:
+          nimskull-version: ${{ matrix.compiler.version }}
+
+      - name: Fetch nimble source for nimskull
+        if: matrix.compiler.name == 'nimskull'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: nimble
+          repository: alaviss/nimble
+          ref: nimskull
+
+      - name: Install nimble for nimskull
+        if: matrix.compiler.name == 'nimskull'
+        run: |
+          nim c -d:release -o:"$NIMSKULL_BIN/nimble" src/nimble.nim
+          # Add nimble binary folder to PATH
+          echo "$HOME/.nimble/bin" >> "$GITHUB_PATH"
+        working-directory: nimble
+        env:
+          NIMSKULL_BIN: ${{ steps.nimskull.outputs.bin-path }}
 
       - name: Install dependencies
         run: nimble install -y --depsOnly
 
       - name: Run tests
-        run: nimble test -y
+        run: nimble test
 
       - name: Build docs
         shell: bash
         run: |
-          branch=${{ github.ref }}
+          branch=$GITHUB_REF
           branch=${branch##*/}
-          for i in *.nim; do
-            nimble doc --project --outdir:htmldocs \
-              '--git.url:https://github.com/${{ github.repository }}' \
-              '--git.commit:${{ github.sha }}' \
+          for i in union.nim union/*.nim; do
+            nim doc --project --outdir:htmldocs \
+              "--git.url:https://github.com/$GITHUB_REPOSITORY" \
+              "--git.commit:$GITHUB_SHA" \
               "--git.devel:$branch" \
               "$i"
           done
           # Ignore failures for older Nim
           cp htmldocs/{the,}index.html || true
 
-      - uses: actions/upload-pages-artifact@v2.0.0
+      - name: Upload GitHub Pages artifact
+        if: matrix.uploaddocs
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
-          path: union/htmldocs
+          path: nim-sys/htmldocs
 
   deploy:
-    if: github.ref_name == 'main'
-    name: Deploy docs to Github Pages
     needs: build
+    if: github.ref_name == 'main'
 
     permissions:
       pages: write
@@ -66,7 +113,34 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
+    name: Deploy docs to GitHub Pages
     runs-on: ubuntu-latest
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v2.0.4
+      - name: Download github-pages artifact
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: github-pages
+          path: page
+          run-id: ${{ fromJson(needs.context.outputs.skipped-by).id }}
+          github-token: ${{ github.token }}
+
+      - name: Upload pages artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: github-pages
+          path: page/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+
+      - name: Deploy page
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+  passed:
+    needs: build
+    if: failure() || cancelled()
+    name: All tests passed
+
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit 1
