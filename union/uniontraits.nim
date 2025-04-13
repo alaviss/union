@@ -13,11 +13,17 @@ import std/options
 import typeutils
 
 type
-  Union*[T] {.pure, inheritable.} = object
+  UnionRoot {.pure, inheritable.} = object
+    ## Root of all unions.
+    ##
+    ## This exists solely to workaround `{.inheritable.}` not functioning with
+    ## `Union[T]`.
+    #empty: byte ## Empty field, used to appease codegen
+
+  Union*[T] = object of UnionRoot
     ## Base type of which all unions inherit from.
     ##
     ## It has no properties other than being a typeclass for matching unions.
-    empty: byte ## Empty field, used to appease codegen
 
   UnionTy* = distinct NimNode
     ## A distinct NimNode representing the type of an Union object.

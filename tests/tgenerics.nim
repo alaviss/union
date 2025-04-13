@@ -6,7 +6,7 @@ suite "generic unions test":
   test "generic as alias for an union type":
     type
       None = object
-      
+
       Option[T] = union(T | None)
 
     check Option[int] is union(int | None)

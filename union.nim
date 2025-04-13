@@ -335,9 +335,11 @@ template union*(T: untyped): untyped =
   ## The typeclass may contain other typeclasses, or other unions.
   ##
   ## If the typeclass contain one unique type, then that unique type will be returned.
-  block:
-    type TImpl = T
-    unionize(TImpl, T)
+  unionize:
+    block:
+      type TImpl = T
+      TImpl
+  do: T
 
 proc unionize(T, info: NimNode): NimNode =
   ## The actual union type builder
@@ -356,6 +358,9 @@ proc unionize(T, info: NimNode): NimNode =
 
   # Obtain generics from the typeclass
   let genericParams = orTy.collectGenericParams
+
+  when defined(unionDebug):
+    echo "Generics count: ", genericParams.len
 
   # If there is only one type in the typeclass
   if orTy.numTypes == 1:
@@ -474,6 +479,13 @@ proc unionize(T, info: NimNode): NimNode =
 
     # Cache the built Union
     Unions.add(orTy, unionTy)
+
+  when defined(unionDebug):
+    echo "== Input"
+    echo repr T
+    echo "== Output"
+    echo treeRepr result
+    echo "== End"
 
 macro convertible*(T: typedesc[Union]): untyped =
   ## Produce converters to convert to/from union type `T` from/to its inner types implicitly.
